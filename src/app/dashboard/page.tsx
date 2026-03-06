@@ -1,19 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { fetchQueryStatus } from '../../lib/api';
-import { QueryStatus } from '../../types';
+import { createClient } from '@supabase/supabase-js';
+import { useUser } from '../../context/UserContext';
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
-  const [queryStatus, setQueryStatus] = useState<QueryStatus[]>([]);
+  const { user } = useUser();
+  const [queries, setQueries] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const getQueryStatus = async () => {
+    const fetchQueries = async () => {
       try {
-        const status = await fetchQueryStatus(user?.id);
-        setQueryStatus(status);
+        if (!user) throw new Error('User not authenticated');
+
+        const { data, error } = await supabase
+          .from('queries')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        setQueries(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -21,43 +30,30 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    if (user) {
-      getQueryStatus();
-    }
+    fetchQueries();
   }, [user]);
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
+  if (loading) return <div>Loading your queries...</div>;
+  if (error) return <div>Error fetching queries: {error}</div>;
 
   return (
     <div>
       <h1>Transform Your Query Management Experience</h1>
-      <h2>Timed Caching Configurations</h2>
-      <p>Optimize performance based on your settings.</p>
-      <h2>Visualization Dashboard</h2>
-      <div>
-        <h3>Query Status</h3>
+      <h2>Your Queries</h2>
+      {queries.length === 0 ? (
+        <p>No queries found. Start adding some!</p>
+      ) : (
         <ul>
-          {queryStatus.map((status) => (
-            <li key={status.id}>
-              <strong>Query:</strong> {status.query}
-              <strong>Status:</strong> {status.status}
-              <strong>Response Time:</strong> {status.responseTime} ms
+          {queries.map((query) => (
+            <li key={query.id}>
+              <h3>{query.name}</h3>
+              <p>Status: {query.status}</p>
+              <p>Response Time: {query.response_time} ms</p>
+              <p>Last Updated: {new Date(query.updated_at).toLocaleString()}</p>
             </li>
           ))}
         </ul>
-      </div>
-      <h2>Debugging Tools</h2>
-      <p>API request/response logs are available for your queries.</p>
-      <h2>Integration Wizards</h2>
-      <p>Easily embed support into your existing projects.</p>
-      <h2>Pre-built Templates</h2>
-      <p>Based on best practices for common querying patterns.</p>
+      )}
     </div>
   );
 };
