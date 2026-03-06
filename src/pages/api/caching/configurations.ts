@@ -1,41 +1,34 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp } from 'firebase-admin/app';
 
-interface AuthedRequest extends NextApiRequest {
-  user?: { uid: string };
-}
-
-admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
-  databaseURL: process.env.FIREBASE_DATABASE_URL,
+const firebaseApp = initializeApp({
+  credential: {
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  },
 });
 
-const configurationsCache = new Map<string, any>();
+const db = getFirestore(firebaseApp);
 
-export default async function handler(req: AuthedRequest, res: NextApiResponse) {
+interface AuthedRequest extends NextApiRequest {
+  userId?: string;
+}
+
+const configurationsHandler = async (req: AuthedRequest, res: NextApiResponse) => {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   try {
-    const userId = req.user?.uid;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
+    const snapshot = await db.collection('cachingConfigurations').get();
+    const configurations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    if (configurationsCache.has(userId)) {
-      return res.status(200).json(configurationsCache.get(userId));
-    }
-
-    const configurations = await admin.firestore().collection('cachingConfigurations').doc(userId).get();
-
-    if (!configurations.exists) {
-      return res.status(404).json({ message: 'Configurations not found' });
-    }
-
-    configurationsCache.set(userId, configurations.data());
-    return res.status(200).json(configurations.data());
+    return res.status(200).json(configurations);
   } catch (err) {
     return res.status(500).json({ message: err instanceof Error ? err.message : String(err) });
   }
-}
+};
+
+export default configurationsHandler;
