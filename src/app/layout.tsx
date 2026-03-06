@@ -1,29 +1,26 @@
-import React from 'react';
-import './globals.css';
-import { SupabaseProvider } from '../context/SupabaseContext';
-import { Metadata } from 'next';
+import React from "react";
+import { Inter } from "next/font/google";
+import { Toaster } from "react-hot-toast";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
-export const metadata: Metadata = {
-  title: 'QueryEase',
-  description: 'Streamline your query management for modern frameworks.',
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata = {
+  title: "QueryEase - Transform Your Query Management Experience",
+  description: "Streamline your query management for modern frameworks.",
 };
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <SupabaseProvider>
-      <html lang="en">
-        <body>
-          <header>
-            <h1>Transform Your Query Management Experience</h1>
-            <p>Streamline your query management for modern frameworks.</p>
-          </header>
-          <main>{children}</main>
-          <footer>
-            <p>© {new Date().getFullYear()} QueryEase. All rights reserved.</p>
-          </footer>
-        </body>
-      </html>
-    </SupabaseProvider>
+    <html lang="en" className={inter.className}>
+      <body>
+        <Toaster />
+        <Header />
+        <main>{children}</main>
+        <Footer />
+      </body>
+    </html>
   );
 };
 
