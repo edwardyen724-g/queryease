@@ -1,57 +1,56 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import admin from 'firebase-admin';
 
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault(),
+  });
+}
+
 interface AuthedRequest extends NextApiRequest {
   user?: { uid: string };
 }
 
-const logs: Map<string, number> = new Map();
+const logs: Map<string, { count: number }> = new Map();
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-  });
-}
-
-const handler = async (req: AuthedRequest, res: NextApiResponse) => {
+export default async function handler(req: AuthedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { queryId, status, responseTime, error } = req.body;
+  const { user } = req;
 
-  if (!queryId || !status || (responseTime === undefined)) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const logEntry = req.body;
 
-  // Rate limiting
-  const currentTime = Date.now();
-  const rateLimitKey = `${clientIp}:${queryId}`;
-  const requests = logs.get(rateLimitKey) || 0;
-
-  if (requests >= 5) {
-    return res.status(429).json({ error: 'Too many requests' });
+  if (!logEntry || !logEntry.query || !logEntry.timestamp) {
+    return res.status(400).json({ message: 'Invalid log entry' });
   }
-
-  logs.set(rateLimitKey, requests + 1);
-  setTimeout(() => logs.delete(rateLimitKey), 60000);
 
   try {
+    const logId = `${user.uid}-${logEntry.query}`;
+
+    if (!logs.has(logId)) {
+      logs.set(logId, { count: 0 });
+    }
+
+    const currentEntry = logs.get(logId);
+    if (currentEntry) {
+      currentEntry.count++;
+    }
+
     await admin.firestore().collection('queryLogs').add({
-      queryId,
-      status,
-      responseTime,
-      error: error || null,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      uid: user.uid,
+      query: logEntry.query,
+      timestamp: new Date(logEntry.timestamp),
+      count: currentEntry?.count,
     });
 
-    return res.status(201).json({ message: 'Log created successfully' });
+    return res.status(200).json({ message: 'Log entry successful', count: currentEntry?.count });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    return res.status(500).json({ message: err instanceof Error ? err.message : String(err) });
   }
-};
-
-export default handler;
+}
