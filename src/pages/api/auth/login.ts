@@ -2,23 +2,22 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
 interface AuthedRequest extends NextApiRequest {
-  user?: { id: string; email: string };
+  user?: string;
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const supabase = createClient(supabaseUrl!, supabaseKey!);
-
-export default async function login(req: AuthedRequest, res: NextApiResponse) {
+export default async function handler(req: AuthedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required' });
+    return res.status(400).json({ message: 'Email and password are required.' });
   }
 
   try {
